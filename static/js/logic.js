@@ -1,6 +1,7 @@
 
 function createMap(earthquakeSites) {
 
+// For this project, this is the dataset used: 
 // https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson
 
 // creating the tile layer
@@ -17,6 +18,8 @@ var baseMaps = {
     "Light Map": lightmap
 };
 
+
+
 var overlayMaps = {
     "Earthquakes": earthquakeSites
   };
@@ -28,47 +31,78 @@ var myMap = L.map("map", {
     layers: [lightmap, earthquakeSites]
 });
 
-
   // Create a layer control, pass in the baseMaps and overlayMaps. Add the layer control to the map
   L.control.layers(baseMaps, overlayMaps, {
     collapsed: false
   }).addTo(myMap);
+  legend.addTo(myMap)
 
 }
 
 function createMarkers(response) {
 
-    // Pull the "earthquake" property off of response.data
-    var earthquakes = response.features;
+  function onEachFeature(feature, layer) {
+    layer.bindPopup("<h3>" + feature.properties.place +
+      "</h3><hr><p>" + new Date(feature.properties.time) + "</p>" + "<h2> Magnitude: " + feature.properties.mag + "</h2>");
+  }
 
-    // Initialize an array to hold earthquakes
-    var listOfSites = [];
-
-    // Loop through the features array
-    for (var index = 0; index < earthquakes.length; index++) {
-        var earthquake = earthquakes[index];
-
-        var earthquakelat = earthquake.geometry.coordinates[1];
-        var earthquakelon = earthquake.geometry.coordinates[0];
-        var earthquakeplace = earthquake.properties.title
-
-        // For each earthquake, create a marker and bind a popup with the earthquake's name
-        var oneSite = L.circleMarker([earthquakelat, earthquakelon]).bindPopup("<h3>Info: <br>" + earthquakeplace + "</h3>");
-                // pane:  'markers1', 
-                // "fillColor": "#012999"};
-        // "radius": 5,
-        // "fillColor": "#012999",
-        // "color": "#012999",
-        // "weight": 1,
-        // "opacity": 1
-        // Add the marker to the listOfSites array
-        listOfSites.push(oneSite);
+  // Create a GeoJSON layer containing the features array on the earthquakeData object
+  // Run the onEachFeature function once for each piece of data in the array
+  function createCircleMarker(feature,latlng){
+    let options = {
+        radius:feature.properties.mag*4,
+        fillColor: getColor(feature.properties.mag),
+        color: getColor(feature.properties.mag),
+        weight: 1,
+        opacity: .8,
+        fillOpacity: 0.8
     }
-
-    // Create a layer group made from the array, pass it into the createMap function
-
-    createMap(L.layerGroup(listOfSites));
+    return L.circleMarker(latlng, options);
 }
+  
+  var earthquakes = L.geoJSON(response, {
+    onEachFeature: onEachFeature,
+    pointToLayer: createCircleMarker
+  });
+ 
+
+    createMap(earthquakes);
+}
+
+// Function that returns the color based on the magnitude of the earthquake 
+
+function getColor(mag) {
+  // console.log(mag)
+  switch(true) {
+      case (0.0 <= mag && mag < 4.0):
+        return "#0000FF";
+      case (4.0 <= mag && mag < 5.0):
+        return "#FFFF00";
+      case (5.0 <= mag && mag < 5.5):
+        return "#FF7F00";
+      case (5.5 <= mag && mag <= 15.0):
+        return "#FF0000";
+      default:
+        return "#4B0082";
+  }
+}
+
+// used this code example: https://leafletjs.com/examples/choropleth/
+var legend = L.control({position: 'bottomleft'});
+
+legend.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'info legend'),
+        grades = [4.0, 5.0, 5.5],
+        labels = [];
+
+    // loop through our density intervals and generate a label with a colored square for each interval
+    for (var i = 0; i < grades.length; i++) {
+        div.innerHTML +=
+            '<i style="background:' + getColor(grades[i]) + '"></i> ' +
+            grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
+    }
+    return div;
+};
 
 // Use this link to get the geojson data.
 d3.json("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson").then(createMarkers);
